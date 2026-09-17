@@ -8,3 +8,4 @@ backups/
 .sites-runtime/
 .DS_Store
 *.log
+pages/

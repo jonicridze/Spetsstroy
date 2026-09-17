@@ -1,0 +1,10 @@
+import {backup} from 'node:sqlite';
+import {mkdir,cp,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {db,dataDir} from '../src/db.mjs';
+const target=resolve(process.env.BACKUP_DIR||'backups',new Date().toISOString().replace(/[:.]/g,'-'));
+await mkdir(target,{recursive:true});
+await backup(db,resolve(target,'sst.sqlite'));
+for(const folder of ['media','private'])await cp(resolve(dataDir,folder),resolve(target,folder),{recursive:true}).catch(e=>{if(e.code!=='ENOENT')throw e});
+await writeFile(resolve(target,'RESTORE.txt'),'Stop the server. Replace DATA_DIR with this directory contents. Keep .env separately and restart. Backups contain personal data: restrict access. For consistent files, pause content editing during backup.\n');
+db.close();console.log('Backup created: '+target);

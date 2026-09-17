@@ -1,0 +1,15 @@
+services:
+  sst:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      DATA_DIR: /app/data
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:8788:8788"
+    volumes:
+      - sst-data:/app/data
+volumes:
+  sst-data:

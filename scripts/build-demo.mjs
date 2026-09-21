@@ -11,11 +11,13 @@ const host='https://'+owner+'.github.io';
 process.env.APP_ORIGIN=host;
 const {renderPage,notFound}=await import('../src/render.mjs');
 const {defaults}=await import('../src/content.mjs');
-const {db}=await import('../src/db.mjs');
+const {db,id,now}=await import('../src/db.mjs');
+const {demoProjects}=await import('../src/demo-projects.mjs');
+for(const [i,p] of demoProjects.entries())db.prepare('INSERT INTO content VALUES(?,?,?,?,?,?,?,?,?)').run(id(),'projects',p.slug,p.title,'published',i,JSON.stringify(p),now(),now());
 const out=resolve('pages');
 await mkdir(out,{recursive:true});
 await cp('dist/assets',join(out,'assets'),{recursive:true});
-for(const file of ['experience.css','app.js','logo.js']){
+for(const file of ['experience.css','app.js','logo.js','architecture.css','architecture.js']){
  let source=await readFile('dist/'+file,'utf8');
  source=source.replaceAll("'/assets/","'"+base+'assets/').replaceAll('"/assets/','"'+base+'assets/');
  await writeFile(join(out,file),source);
@@ -34,7 +36,7 @@ function adapt(html){
  return html;
 }
 try{
- for(const route of ['/','/company','/contacts','/privacy']){
+ for(const route of ['/','/company','/capabilities','/projects','/news','/suppliers','/contacts','/privacy',...demoProjects.map(p=>'/projects/'+p.slug)]){
   const dir=join(out,route.slice(1));await mkdir(dir,{recursive:true});
   await writeFile(join(dir,'index.html'),adapt(renderPage(route,defaults)));
  }

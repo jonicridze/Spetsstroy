@@ -56,6 +56,61 @@ npm start
 
 Задайте production APP_ORIGIN в `.env`, затем `docker compose up -d --build`. База и файлы сохраняются в томе sst-data. Для первого администратора временно заполните SST_ADMIN_* и выполните `docker compose run --rm sst node scripts/create-admin.mjs`. Затем удалите пароль из `.env` и пересоздайте контейнер: `docker compose up -d --force-recreate`. Docker в рамках поставки не запускался.
 
+### Автоматическое обновление VPS из GitHub
+
+Workflow `.github/workflows/deploy-production.yml` запускает тесты и проверку сборки, затем подключается к VPS и обновляет `/opt/spetsstroy` до последнего коммита ветки `main`. После этого Docker Compose пересобирает и перезапускает приложение. База SQLite и загруженные файлы остаются в постоянном томе `sst-data`; `.env` на сервере остаётся локальным.
+
+Для включения настройте отдельный SSH-ключ для GitHub Actions и пользователя `sstdeploy` на VPS. Не используйте root-пароль и не добавляйте `.env` или ключ в Git.
+
+1. В Windows PowerShell создайте ключ без парольной фразы:
+
+   ```powershell
+   ssh-keygen -t ed25519 -C "github-actions-spetsstroy" -f "$env:USERPROFILE\.ssh\spetsstroy_actions"
+   ```
+
+   На запрос парольной фразы нажмите Enter два раза. Публичная часть находится в `spetsstroy_actions.pub`; её можно установить на VPS. Приватную часть `spetsstroy_actions` никому не отправляйте и вставьте только в секрет GitHub.
+
+2. Подключитесь к VPS как root и создайте пользователя выкладки:
+
+   ```bash
+   adduser --disabled-password --gecos "" sstdeploy
+   usermod -aG docker sstdeploy
+   install -d -m 700 -o sstdeploy -g sstdeploy /home/sstdeploy/.ssh
+   nano /home/sstdeploy/.ssh/authorized_keys
+   ```
+
+   Вставьте в файл одну строку из `spetsstroy_actions.pub`, сохраните `Ctrl+O`, Enter, затем выйдите `Ctrl+X`. После этого в SSH выполните:
+
+   ```bash
+   chown sstdeploy:sstdeploy /home/sstdeploy/.ssh/authorized_keys
+   chmod 600 /home/sstdeploy/.ssh/authorized_keys
+   chown -R sstdeploy:sstdeploy /opt/spetsstroy
+   ```
+
+   Добавление в группу `docker` даёт пользователю выкладки широкие полномочия на сервере, поэтому не используйте этот ключ на чужих компьютерах. Приватный ключ храните только в GitHub Actions Secret.
+
+3. Проверьте с Windows, что ключ входит на сервер:
+
+   ```powershell
+   ssh -i "$env:USERPROFILE\.ssh\spetsstroy_actions" sstdeploy@159.194.244.217
+   ```
+
+   Если спросит пароль, нажмите Enter. Внутри сервера проверьте `cd /opt/spetsstroy && docker compose ps`, затем выйдите командой `exit`.
+
+4. В PowerShell выполните `ssh-keygen -F 159.194.244.217 -f "$env:USERPROFILE\.ssh\known_hosts"`. Скопируйте строку с ключом хоста из результата (строку, начинающуюся с IP или `|1|`, а не комментарий). Это ключ, который SSH уже сохранил при первом подключении к VPS.
+
+5. В GitHub откройте **Settings → Secrets and variables → Actions → New repository secret** и создайте секреты:
+
+   - `DEPLOY_HOST` — `159.194.244.217`
+   - `DEPLOY_USER` — `sstdeploy`
+   - `DEPLOY_PORT` — `22`
+   - `DEPLOY_SSH_KEY` — всё содержимое приватного файла `spetsstroy_actions`, включая строки `BEGIN` и `END`; не публикуйте его и не присылайте в чат
+   - `DEPLOY_KNOWN_HOSTS` — строка ключа хоста из шага 4
+
+6. Отправьте коммит в ветку `main`. Вкладка **Actions** в GitHub покажет тесты и состояние выкладки; при ошибке откройте журнал workflow, чтобы увидеть причину.
+
+Workflow синхронизирует файлы приложения с `origin/main` командой `git reset --hard`; не храните ручные изменения исходников на VPS. Неотслеживаемый `.env` и постоянный том данных сохраняются.
+
 ## Резервные копии
 
 `npm run backup` создаёт папку с копией SQLite, публичными медиа и приватными вложениями. На время копирования приостановите редактирование и приём новых файлов для согласованности с базой. Копии содержат персональные данные: храните вне репозитория с ограниченным доступом. `.env` сохраните отдельно.

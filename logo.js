@@ -33,22 +33,18 @@ export async function initLogo(stage, motionEnabled = () => true) {
   scene.add(model);
   const svg = await new SVGLoader().loadAsync('/assets/emblem.svg');
   const metal = [
-    new THREE.MeshStandardMaterial({ color: 0x9aabc0, metalness: 0.86, roughness: 0.2, side: THREE.DoubleSide }),
-    new THREE.MeshStandardMaterial({ color: 0x263952, metalness: 0.82, roughness: 0.25, side: THREE.DoubleSide })
+    new THREE.MeshPhysicalMaterial({ color: 0x9aacc5, metalness: 0.62, roughness: 0.26, clearcoat: 0.38, clearcoatRoughness: 0.22, side: THREE.DoubleSide }),
+    new THREE.MeshStandardMaterial({ color: 0x1b2943, metalness: 0.46, roughness: 0.32, side: THREE.DoubleSide })
   ];
-  const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xd6e2f0, transparent: true, opacity: 0.66 });
-  const parts = [];
 
   for (const path of svg.paths) {
     for (const shape of path.toShapes(true)) {
-      const geometry = new THREE.ExtrudeGeometry(shape, { depth: 14, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: 0.6, bevelThickness: 0.65, curveSegments: 16 });
+      const geometry = new THREE.ExtrudeGeometry(shape, { depth: 24, bevelEnabled: true, bevelSegments: 4, steps: 1, bevelSize: 2.2, bevelThickness: 1.6, curveSegments: 24 });
       geometry.translate(-141.73, -141.73, -7);
       geometry.scale(0.021, -0.021, 0.021);
       geometry.computeVertexNormals();
       geometry.computeBoundingBox();
-      const mesh = new THREE.Mesh(geometry, metal);
-      model.add(mesh);
-      parts.push(mesh);
+      model.add(new THREE.Mesh(geometry, metal));
     }
   }
 
@@ -58,15 +54,7 @@ export async function initLogo(stage, motionEnabled = () => true) {
   const size = bounds.getSize(new THREE.Vector3());
   const fit = 8.5 / Math.max(size.x, size.y);
   model.scale.setScalar(fit);
-  for (const part of parts) {
-    const outline = new THREE.LineSegments(new THREE.EdgesGeometry(part.geometry, 32), edgeMaterial);
-    outline.position.copy(part.position);
-    outline.rotation.copy(part.rotation);
-    outline.scale.copy(part.scale);
-    model.add(outline);
-  }
-
-  const initial = { x: -0.12, y: 0.32 };
+  const initial = { x: -0.08, y: -0.12 };
   model.rotation.set(initial.x, initial.y, 0);
   let active = false;
   let pointer = null;
@@ -131,7 +119,6 @@ export async function initLogo(stage, motionEnabled = () => true) {
       model.rotation.y += dy * k;
       model.rotation.z += (0 - model.rotation.z) * k;
     }
-    if (fallback) fallback.style.transform = `rotateX(${THREE.MathUtils.radToDeg(model.rotation.x)}deg) rotateY(${THREE.MathUtils.radToDeg(model.rotation.y - initial.y)}deg)`;
     renderer.render(scene, camera);
   }
   raf = requestAnimationFrame(frame);

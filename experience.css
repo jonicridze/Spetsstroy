@@ -40,3 +40,6 @@
 @media(max-width:380px){.cinema-hero{min-height:790px}.hero-art-home{min-height:275px}.cinema-hero h1{font-size:49px}}
 
 .card-close{position:absolute;bottom:22px;right:24px;background:transparent;border:1px solid currentColor;color:inherit;padding:9px 14px;font-size:12px;cursor:pointer}
+
+/* Simplified hero mark presentation */
+.hero-art-home{background:transparent;border-radius:0}.hero-art-home .art-grid,.hero-art-home .orbit,.hero-art-home .model-shadow{display:none}.hero-art-home #logo-stage{inset:2% 0 17%}.hero-art-home #logo-stage canvas{filter:drop-shadow(0 22px 22px #08101d58)}.hero-art-home .logo-fallback{filter:drop-shadow(0 22px 18px #08101d58);transform:none}

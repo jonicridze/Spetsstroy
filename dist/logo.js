@@ -8,7 +8,7 @@ export async function initLogo(stage, motionEnabled = () => true) {
   camera.position.set(0, 0, 15);
 
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.7));
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.35;
@@ -57,9 +57,9 @@ export async function initLogo(stage, motionEnabled = () => true) {
   const initial = { x: -0.08, y: -0.12 };
   model.rotation.set(initial.x, initial.y, 0);
   let active = false;
-  let pointer = null;
+  let activePointerId = null;
+  let pointerStart = null;
   let targetRotation = { ...initial };
-  let last = 0;
   let raf = 0;
   let previous = performance.now();
   const value = document.querySelector('#rotation-value');
@@ -72,33 +72,36 @@ export async function initLogo(stage, motionEnabled = () => true) {
     camera.aspect = width / height;
     camera.position.z = width < 600 ? 18 : 15;
     camera.updateProjectionMatrix();
+    invalidate();
   }
   const observer = new ResizeObserver(resize);
   observer.observe(stage);
   resize();
 
   stage.addEventListener('pointerdown', event => {
+    if (event.button !== undefined && event.button !== 0) return;
     event.preventDefault();
     active = true;
-    pointer = { x: event.clientX, y: event.clientY };
+    activePointerId = event.pointerId;
+    pointerStart = { x: event.clientX, y: event.clientY, rotationX: model.rotation.x, rotationY: model.rotation.y };
     try { stage.setPointerCapture(event.pointerId); } catch {}
-    last = event.pointerId;
+    invalidate();
   });
   stage.addEventListener('pointermove', event => {
-    if (!active || event.pointerId !== last) return;
-    const dx = event.clientX - pointer.x;
-    const dy = event.clientY - pointer.y;
-    targetRotation.y += dx * 0.006;
-    targetRotation.x = THREE.MathUtils.clamp(targetRotation.x + dy * 0.005, -1.25, 1.25);
-    pointer = { x: event.clientX, y: event.clientY };
+    if (!active || event.pointerId !== activePointerId) return;
+    targetRotation.y = pointerStart.rotationY + (event.clientX - pointerStart.x) * 0.0035;
+    targetRotation.x = THREE.MathUtils.clamp(pointerStart.rotationX + (event.clientY - pointerStart.y) * 0.0035, -1.1, 1.1);
+    invalidate();
     if (value) value.textContent = `${String(Math.round(THREE.MathUtils.euclideanModulo(model.rotation.y * THREE.MathUtils.RAD2DEG, 360))).padStart(3, '0')}°`;
   });
   const release = event => {
-    if (event.pointerId !== last) return;
+    if (!active || event.pointerId !== activePointerId) return;
     active = false;
-    pointer = null;
+    activePointerId = null;
+    pointerStart = null;
     targetRotation.x = initial.x;
     targetRotation.y = model.rotation.y + (THREE.MathUtils.euclideanModulo(initial.y - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI);
+    invalidate();
   };
   stage.addEventListener('pointerup', release);
   stage.addEventListener('pointercancel', release);
@@ -112,22 +115,39 @@ export async function initLogo(stage, motionEnabled = () => true) {
     else if (event.key === 'Escape') { targetRotation.x = initial.x; targetRotation.y = model.rotation.y + (THREE.MathUtils.euclideanModulo(initial.y - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI); }
     else return;
     event.preventDefault();
+    invalidate();
     if (value) value.textContent = `${String(Math.round(THREE.MathUtils.euclideanModulo(model.rotation.y * THREE.MathUtils.RAD2DEG, 360))).padStart(3, '0')}°`;
   });
-  document.querySelector('#reset-logo')?.addEventListener('click', () => { targetRotation.x = initial.x; targetRotation.y = model.rotation.y + (THREE.MathUtils.euclideanModulo(initial.y - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI); });
+  document.querySelector('#reset-logo')?.addEventListener('click', () => { targetRotation.x = initial.x; targetRotation.y = model.rotation.y + (THREE.MathUtils.euclideanModulo(initial.y - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI); invalidate(); });
+
+  function invalidate() {
+    if (raf) return;
+    previous = performance.now();
+    raf = requestAnimationFrame(frame);
+  }
 
   function frame(now) {
-    raf = requestAnimationFrame(frame);
+    raf = 0;
     const delta = Math.min((now - previous) / 1000, 0.05);
     previous = now;
-    const k = 1 - Math.exp(-delta * (active ? 26 : (motionEnabled() ? 4 : 12)));
-    model.rotation.x += (targetRotation.x - model.rotation.x) * k;
-    const dy = THREE.MathUtils.euclideanModulo(targetRotation.y - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI;
-    model.rotation.y += dy * k;
-    model.rotation.z *= 1 - k;
+    let moving = active;
+    if (active) {
+      model.rotation.x = targetRotation.x;
+      model.rotation.y = targetRotation.y;
+      model.rotation.z = 0;
+    } else {
+      const k = 1 - Math.exp(-delta * (motionEnabled() ? 4 : 12));
+      const dx = targetRotation.x - model.rotation.x;
+      const dy = THREE.MathUtils.euclideanModulo(targetRotation.y - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI;
+      model.rotation.x += dx * k;
+      model.rotation.y += dy * k;
+      model.rotation.z *= 1 - k;
+      moving = Math.abs(dx) > 0.0005 || Math.abs(dy) > 0.0005 || Math.abs(model.rotation.z) > 0.0005;
+    }
     renderer.render(scene, camera);
+    if (moving) raf = requestAnimationFrame(frame);
   }
-  raf = requestAnimationFrame(frame);
+  invalidate();
 
   stage.classList.add('logo-ready');
   return () => {

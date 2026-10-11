@@ -48,3 +48,6 @@
 
 /* Simplified hero mark presentation */
 .hero-art-home{background:transparent;border-radius:0}.hero-art-home .art-grid,.hero-art-home .orbit,.hero-art-home .model-shadow{display:none}.hero-art-home #logo-stage{inset:2% 0 17%}.hero-art-home #logo-stage canvas{filter:drop-shadow(0 22px 22px #08101d58)}.hero-art-home .logo-fallback{filter:drop-shadow(0 22px 18px #08101d58);transform:none}
+
+/* Prevent fallback overlap and keep pointer rotation stable on touch and mouse. */
+.hero-art-home{background:transparent!important;border-radius:0!important}.hero-art-home .art-grid,.hero-art-home .orbit,.hero-art-home .model-shadow{display:none!important}.hero-art-home #logo-stage{touch-action:none}.hero-art-home.logo-ready .logo-fallback{display:none!important}.hero-art-home .logo-fallback{display:none}.hero-art-home.logo-failed .logo-fallback{display:block;width:64%;height:64%;inset:12%;filter:drop-shadow(0 22px 18px #08101d58);transform:none}

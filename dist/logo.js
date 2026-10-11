@@ -39,7 +39,7 @@ export async function initLogo(stage, motionEnabled = () => true) {
 
   for (const path of svg.paths) {
     for (const shape of path.toShapes(true)) {
-      const geometry = new THREE.ExtrudeGeometry(shape, { depth: 24, bevelEnabled: true, bevelSegments: 4, steps: 1, bevelSize: 2.2, bevelThickness: 1.6, curveSegments: 24 });
+      const geometry = new THREE.ExtrudeGeometry(shape, { depth: 7, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: 0.9, bevelThickness: 0.7, curveSegments: 20 });
       geometry.translate(-141.73, -141.73, -7);
       geometry.scale(0.021, -0.021, 0.021);
       geometry.computeVertexNormals();
@@ -58,6 +58,7 @@ export async function initLogo(stage, motionEnabled = () => true) {
   model.rotation.set(initial.x, initial.y, 0);
   let active = false;
   let pointer = null;
+  let targetRotation = { ...initial };
   let last = 0;
   let raf = 0;
   let previous = performance.now();
@@ -77,48 +78,53 @@ export async function initLogo(stage, motionEnabled = () => true) {
   resize();
 
   stage.addEventListener('pointerdown', event => {
+    event.preventDefault();
     active = true;
     pointer = { x: event.clientX, y: event.clientY };
-    stage.setPointerCapture(event.pointerId);
+    try { stage.setPointerCapture(event.pointerId); } catch {}
     last = event.pointerId;
   });
   stage.addEventListener('pointermove', event => {
     if (!active || event.pointerId !== last) return;
     const dx = event.clientX - pointer.x;
     const dy = event.clientY - pointer.y;
-    model.rotation.y += dx * 0.009;
-    model.rotation.x += dy * 0.009;
+    targetRotation.y += dx * 0.006;
+    targetRotation.x = THREE.MathUtils.clamp(targetRotation.x + dy * 0.005, -1.25, 1.25);
     pointer = { x: event.clientX, y: event.clientY };
     if (value) value.textContent = `${String(Math.round(THREE.MathUtils.euclideanModulo(model.rotation.y * THREE.MathUtils.RAD2DEG, 360))).padStart(3, '0')}°`;
   });
-  const release = event => { if (event.pointerId === last) active = false; };
+  const release = event => {
+    if (event.pointerId !== last) return;
+    active = false;
+    pointer = null;
+    targetRotation.x = initial.x;
+    targetRotation.y = model.rotation.y + (THREE.MathUtils.euclideanModulo(initial.y - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI);
+  };
   stage.addEventListener('pointerup', release);
   stage.addEventListener('pointercancel', release);
   stage.addEventListener('lostpointercapture', release);
   stage.addEventListener('keydown', event => {
     const step = 0.13;
-    if (event.key === 'ArrowLeft') model.rotation.y -= step;
-    else if (event.key === 'ArrowRight') model.rotation.y += step;
-    else if (event.key === 'ArrowUp') model.rotation.x -= step;
-    else if (event.key === 'ArrowDown') model.rotation.x += step;
-    else if (event.key === 'Escape') { model.rotation.set(initial.x, initial.y, 0); }
+    if (event.key === 'ArrowLeft') targetRotation.y -= step;
+    else if (event.key === 'ArrowRight') targetRotation.y += step;
+    else if (event.key === 'ArrowUp') targetRotation.x = THREE.MathUtils.clamp(targetRotation.x - step, -1.25, 1.25);
+    else if (event.key === 'ArrowDown') targetRotation.x = THREE.MathUtils.clamp(targetRotation.x + step, -1.25, 1.25);
+    else if (event.key === 'Escape') { targetRotation.x = initial.x; targetRotation.y = model.rotation.y + (THREE.MathUtils.euclideanModulo(initial.y - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI); }
     else return;
     event.preventDefault();
     if (value) value.textContent = `${String(Math.round(THREE.MathUtils.euclideanModulo(model.rotation.y * THREE.MathUtils.RAD2DEG, 360))).padStart(3, '0')}°`;
   });
-  document.querySelector('#reset-logo')?.addEventListener('click', () => model.rotation.set(initial.x, initial.y, 0));
+  document.querySelector('#reset-logo')?.addEventListener('click', () => { targetRotation.x = initial.x; targetRotation.y = model.rotation.y + (THREE.MathUtils.euclideanModulo(initial.y - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI); });
 
   function frame(now) {
     raf = requestAnimationFrame(frame);
     const delta = Math.min((now - previous) / 1000, 0.05);
     previous = now;
-    if (!active) {
-      const k = motionEnabled() ? 1 - Math.exp(-delta * 2.7) : 1;
-      model.rotation.x += (initial.x - model.rotation.x) * k;
-      let dy = THREE.MathUtils.euclideanModulo(model.rotation.y - initial.y + Math.PI, Math.PI * 2) - Math.PI;
-      model.rotation.y += dy * k;
-      model.rotation.z += (0 - model.rotation.z) * k;
-    }
+    const k = 1 - Math.exp(-delta * (active ? 26 : (motionEnabled() ? 4 : 12)));
+    model.rotation.x += (targetRotation.x - model.rotation.x) * k;
+    const dy = THREE.MathUtils.euclideanModulo(targetRotation.y - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI;
+    model.rotation.y += dy * k;
+    model.rotation.z *= 1 - k;
     renderer.render(scene, camera);
   }
   raf = requestAnimationFrame(frame);
